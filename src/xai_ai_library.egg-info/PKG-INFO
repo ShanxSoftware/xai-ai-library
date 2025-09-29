@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: xai-ai-library
+Version: 0.1.0
+License-File: LICENSE
+Requires-Dist: xai-sdk>=1.1
+Requires-Dist: numpy>=2.3
+Requires-Dist: pydantic>=2.11
+Requires-Dist: sentence-transformers>=5.1
+Requires-Dist: pymupdf>=1.26
+Requires-Dist: tenacity>=9.1
+Requires-Dist: pyyaml>=6.0
+Dynamic: license-file
+Dynamic: requires-dist

@@ -13,6 +13,8 @@ setup(
         "sentence-transformers>=5.1",
         "pymupdf>=1.26",
         "tenacity>=9.1",
-        "pyyaml>=6.0"
+        "pyyaml>=6.0",
+        "grpcio>=1.75",
+        "grpcio-tools>=1.75"
     ],
 )

@@ -5,3 +5,5 @@ sentence_transformers==5.1.0
 pymupdf==1.26.4
 tenacity==9.1.2
 pyyaml==6.0.1
+grpcio>=1.72.1
+grpcio-tools==1.75.0
