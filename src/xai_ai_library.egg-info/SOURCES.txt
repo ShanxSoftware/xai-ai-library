@@ -1,5 +1,6 @@
 LICENSE
 README.md
+pyproject.toml
 setup.py
 src/xai_ai_library.egg-info/PKG-INFO
 src/xai_ai_library.egg-info/SOURCES.txt

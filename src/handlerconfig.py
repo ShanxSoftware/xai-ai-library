@@ -1,9 +1,9 @@
 import os
 import logging
 from pydantic import BaseModel
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Any
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from personality import AgentPersonality
 
 @dataclass
@@ -11,14 +11,14 @@ class HandlerConfig:
     api_key: str
     model: str = "grok-4"
     personality: Optional[AgentPersonality] = None
-    tools: Dict[str, tuple[Callable, str, str]] = {}
+    tools: Dict[str, tuple[Callable, Dict[str, Any], str]] = field(default_factory=dict)
     memory_db: str = "memory_vault.db"
     timeout: int = 3600
     logger = logging.Logger(name="HandlerConfig_Log", level=logging.WARNING)
 
     def __init__(self, api_key: str, model: str = "grok-4", personality: Optional[AgentPersonality] = None,
         tools: Optional[Dict[str, tuple[Callable, type[BaseModel], str]]] = None, 
-        memory_db: str = "memory_valut.db", timeout: int = 3600): 
+        memory_db: str = "memory_vault.db", timeout: int = 3600): 
         """
         Initiates the class
 
@@ -104,7 +104,7 @@ class HandlerConfig:
             tool_name: Name of tool to remove
         """
         try: 
-            self.tools.popitem(tool_name)
+            self.tools.pop(tool_name)
             self.logger.info(f"Removed tool: {tool_name}")
         except KeyError: 
             self.logger.warning(f"Tool '{tool_name}' not found.")

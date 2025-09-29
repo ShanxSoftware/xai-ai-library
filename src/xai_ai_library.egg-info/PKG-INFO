@@ -1,6 +1,12 @@
 Metadata-Version: 2.4
 Name: xai-ai-library
 Version: 0.1.0
+Summary: A library that utilises xAI-SDK to rapidly spin up AI Assistants with DISC personalities.
+Author: Grok
+Author-email: Jakob Shanks <jakob@shanx.com.au>
+License: MIT
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: xai-sdk>=1.1
 Requires-Dist: numpy>=2.3
@@ -9,5 +15,9 @@ Requires-Dist: sentence-transformers>=5.1
 Requires-Dist: pymupdf>=1.26
 Requires-Dist: tenacity>=9.1
 Requires-Dist: pyyaml>=6.0
+Requires-Dist: grpcio>=1.75
+Requires-Dist: grpcio-tools>=1.75
 Dynamic: license-file
-Dynamic: requires-dist
+
+# xai-ai-library
+A library that implements xAI SDK and xAI API for rapidly spinning up AI Assistants. 

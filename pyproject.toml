@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xai-ai-library"
+version = "0.1.0"
+description = "A library that utilises xAI-SDK to rapidly spin up AI Assistants with DISC personalities."  # Add a short description; optional but recommended
+readme = "README.md"  
+requires-python = ">=3.13"  
+authors = [{ name = "Jakob Shanks", email = "jakob@shanx.com.au" }, { name = "Grok" }] 
+license = { text = "MIT" }  
+dependencies = [
+    "xai-sdk>=1.1",
+    "numpy>=2.3",
+    "pydantic>=2.11",
+    "sentence-transformers>=5.1",
+    "pymupdf>=1.26",
+    "tenacity>=9.1",
+    "pyyaml>=6.0",
+    "grpcio>=1.75",
+    "grpcio-tools>=1.75"
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
