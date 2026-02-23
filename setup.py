@@ -2,10 +2,11 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="xai-ai-library",
-    version="0.1.0",
+    name="xaihandler",
+    version="0.1.1",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
+    python_requires=">=3.10",
     install_requires=[
         "xai-sdk>=1.1",
         "numpy>=2.3",
@@ -15,6 +16,7 @@ setup(
         "tenacity>=9.1",
         "pyyaml>=6.0",
         "grpcio>=1.75",
-        "grpcio-tools>=1.75"
+        "grpcio-tools>=1.75",
+        "python-dotenv"
     ],
 )

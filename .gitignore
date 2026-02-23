@@ -2,4 +2,4 @@
 .venv
 config.yaml
 memory_vault.db
-
+.vscode

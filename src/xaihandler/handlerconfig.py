@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Callable, Any
 from pathlib import Path
 from dataclasses import dataclass, field
-from personality import AgentPersonality
+from .personality import AgentPersonality
 
 @dataclass
 class HandlerConfig:

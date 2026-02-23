@@ -7,6 +7,11 @@ src/xai_ai_library.egg-info/SOURCES.txt
 src/xai_ai_library.egg-info/dependency_links.txt
 src/xai_ai_library.egg-info/requires.txt
 src/xai_ai_library.egg-info/top_level.txt
+src/xaihandler/__init__.py
+src/xaihandler/handler.py
+src/xaihandler/handlerconfig.py
+src/xaihandler/memory.py
+src/xaihandler/personality.py
 tests/test_handler.py
 tests/test_memory.py
 tests/test_personality.py

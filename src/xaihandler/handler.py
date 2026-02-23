@@ -8,9 +8,9 @@ import uuid
 import grpc 
 import re 
 import inspect
-from personality import Archetype, Trait, AgentTrait, AgentPersonality
-from memory import StatefulMemory
-from handlerconfig import HandlerConfig
+from .personality import Archetype, Trait, AgentTrait, AgentPersonality
+from .memory import StatefulMemory
+from .handlerconfig import HandlerConfig
 from typing import Dict, Callable, Tuple, Any, List, Optional, Literal, Union, Type
 from pydantic import BaseModel, Field, model_validator
 from tenacity import retry, stop_after_attempt, wait_exponential
