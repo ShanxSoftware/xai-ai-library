@@ -17,7 +17,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from pathlib import Path
 from xai_sdk import Client
 from xai_sdk.chat import BaseChat, Response, user, system, assistant, image, tool, tool_result
-from xai_sdk.sync.chat import Chat 
+from xai_sdk.proto.v5.chat_pb2 import MessageRole, Message
+from xai_sdk.sync.chat import Chat
 from xai_sdk.search import SearchParameters
 
 class UserIntent(BaseModel): 
@@ -25,6 +26,15 @@ class UserIntent(BaseModel):
     type: Literal['get_weather', 'query_zotero', 'book_flight', 'chat'] = Field(..., description="User's intent")
     params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for the intent")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Model's confidence in this intent") 
+
+# Assuming a role mapper; adjust based on your enum (inspect MessageRole to confirm values)
+ROLE_MAP = {
+    MessageRole.ROLE_SYSTEM: "system",
+    MessageRole.ROLE_USER: "user",
+    MessageRole.ROLE_ASSISTANT: "assistant",
+    MessageRole.ROLE_TOOL: "tool_result",
+    # Add others if needed
+}
 
 class xAI_Handler:
     """
@@ -35,7 +45,7 @@ class xAI_Handler:
             config: Optional[HandlerConfig] = None,
             api_key: Optional[str] = None, 
             model: Optional[str] = None, 
-            timeout: Optional[int] = None, 
+            timeout: Optional[float] = None, 
             logger: Optional[logging.Logger] = None, 
             validate_connection: bool = True, 
             tools: Optional[Dict[str, Tuple[Callable, type[BaseModel], str]]] = None, # New: {name: (proc_func, ParamModel, desc)}
@@ -55,11 +65,11 @@ class xAI_Handler:
                     primary_weight=0.6,
                     secondary_archetype=Archetype.EXPRESSIVE,
                     job_description="Personal assistant",
-                    traits={
-                        "empathy": AgentTrait(trait=Trait.EMPATHY, intensity=60), 
-                        "curiosity": AgentTrait(trait=Trait.CURIOSITY, intensity=50),
-                        "precision": AgentTrait(trait=Trait.PRECISION, intensity=90)
-                    }
+                    traits=[
+                        AgentTrait(trait=Trait.EMPATHY, intensity=60),
+                        AgentTrait(trait=Trait.CURIOSITY, intensity=50), 
+                        AgentTrait(trait=Trait.PRECISION, intensity=90)  
+                    ]
                 ),
                 tools=tools or {},
                 memory_db="memory_vault.db",
@@ -78,7 +88,7 @@ class xAI_Handler:
         self._default_session_id = str(uuid.uuid4())
         self.client = Client(
             api_key=self.config.api_key,
-            timeout=self.timeout
+            timeout=self.config.timeout
         )
         
         if validate_connection and self._validate_connection():
@@ -150,14 +160,14 @@ class xAI_Handler:
             return getattr(self, '_default_session_id', 'default')
         return session_id 
     
-    def _get_or_create_chat(self, session_id: str = "default", tool_choice: str = "auto") -> BaseChat:
+    def _get_or_create_chat(self, session_id: str = "default", tool_choice: str = "auto") -> tuple[str, Chat]:
         """
         Get existing chat or create new one from the stored state.
         """
         session_id = self._get_session_id(session_id)
         
         if session_id not in self._active_chats:
-            messages = [system(self.config.personality.to_system_prompt())]
+            messages = [system(self.config.personality.system_prompt)] # TODO: Remove this and append the system message below. 
              
             if self.tool_definitions: # Check if tools are configured
                 tools_config = {
@@ -175,9 +185,9 @@ class xAI_Handler:
                     messages=messages
                 )
                 
-            self._active_chats[session_id] = chat
+            self._active_chats[session_id] = chat            
         
-        return self._active_chats[session_id]
+        return [session_id, self._active_chats[session_id]] # Updated so that session_id is passed to calling function when no session_id was specified. 
 
     def _sync_chat(self, session_id: str):
         """
@@ -247,7 +257,7 @@ class xAI_Handler:
             tool_name: Name of tool to remove
             rebuild_definitions: If chaining multiple tool changes, set to false until the final change.
         """
-        if tool_name in self.tools:
+        if tool_name in self.config.tools:
             self.config.remove_tool(tool_name)
             if rebuild_definitions: 
                 self.rebuild_tool_definitions()
@@ -298,7 +308,25 @@ class xAI_Handler:
         if any(kw in message.lower() for kw in tool_keywords):
             return True
 
-    def _get_chat_history(self, session_id: str, summarize: bool = True) -> List[Dict[str, Any]]:
+    def _convert_message_container_to_list_of_dict(self, message_container) -> List[Dict[str, str]]:
+        for msg in message_container: 
+            rv: List[Dict[str, str]] = []
+            try: 
+                role = ROLE_MAP[msg.role].lower()
+            except Exception as e: 
+                self.logger.warning(f"Detecting role failed: {e}")
+            content = None
+            try: 
+                content = msg.content.pop().text
+            except Exception as e: 
+                self.logger.warning(f"Empty content element: {e}")
+            if content: 
+                rv.append({"role": role, "content": content})
+            
+        return rv
+    
+
+    def _get_chat_history(self, session_id: str, summarize: bool = True) -> List[Dict[str, str]]:
         """
         Get/summarize history for forking.
         
@@ -307,22 +335,24 @@ class xAI_Handler:
             summarize: Option to turn off summaries if required. 
         
         Returns: 
-            List: [Dict[str, Any]] small sample of messages for use as context in other chats. 
+            List: [Message] small sample of messages for use as context in other chats. 
         """
         history = []
         try: 
-            chat = self._get_or_create_chat(session_id)
-            if len(chat.messages) > 5 and summarize: 
+            chat_tupple = self._get_or_create_chat(session_id)
+            if len(chat_tupple[1].messages) > 5 and summarize: 
                 temp_chat = self.client.chat.create(model="grok-4-fast-reasoning") # TODO: Add summarization model to config, use less tokens then main model. 
                 temp_chat.append(system("You are an efficient librarian, capable of condensing information for other chat bots."))
-                temp_chat.messages.extend(chat.messages[:-5]) # JAKOB: Grok suggested extend instead of append to avoid a Type Error. Pylance doesn't think extend exists. 
+                temp_chat.messages.extend(chat_tupple[1].messages[:-5]) # JAKOB: Grok suggested extend instead of append to avoid a Type Error. Pylance doesn't think extend exists. 
                 temp_chat.append(user("Please summarize this conversation for use as context in another chat."))
                 summary = temp_chat.sample() 
-                history.append({"role": "assistant", "content": summary.content})    
+                history.append({"role": "assistant", "content": summary.content})
         except Exception as e: 
             self.logger.error(f"Summarization failed: {e}") # TODO: Implement error handling, Type Error and what ever sample throws. 
-        last_5 = chat.messages[-5:]
-        history.extend(msg for msg in last_5 if msg.get("role") != "system")
+
+        # Hmm if messages len is < 5 this creates a bunch of blank mesages that have roles. WHY? 
+        last_5 = chat_tupple[1].messages[-5:]
+        history.extend(self._convert_message_container_to_list_of_dict(message_container=last_5))        
         return history  
 
     def clear_session(self, session_id: str):
@@ -341,15 +371,45 @@ class xAI_Handler:
     def _execute_tool_task(self, message: str, context_messages: List[Dict] = None, **kwargs) -> Dict: # GROK: Should the chat function below use this? 
         """Fork clean session for tool execution."""
         tool_session_id = f"_tool_{uuid.uuid4().hex[:8]}"
-        tool_chat = self._get_or_create_chat(tool_session_id, tool_choice="auto") 
+        tool_chat = self._get_or_create_chat(tool_session_id, tool_choice="auto")[1]
         try:
             tool_chat.append(system("You are a tool execution specialist. Execute the requested tools and return only the results. Be precise and complete."))
-            tool_chat.messages.extend(context_messages or [])
-            tool_chat.append(user(message)) # JAKOB: double check that this is not doubling up messages. 
+            # tool_chat.append(context_messages) #JAKOB: Grok this produces a value error because append can only append one message
+            # tool_chat.extend(context_messages) # JAKOB: Grok the extend function doesn't exist so this won't work. 
+
+            for msg in context_messages or []: # JAKOB: Grok, the for loop will iterate through the messages. However, msg.get produces an attribute exception
+                role = msg.get("role")
+                content = msg.get("content")
+                if role == "assistant":
+                    tool_chat.append(assistant(content))
+                elif role == user: 
+                    tool_chat.append(user(content))
+                elif role == "tool_result":
+                    tool_chat.append(tool_result(content))
+            tool_chat.append(user(message)) # JAKOB: This doesn't get called if the above messages fail. 
             
         except ValueError as e:
-            self.logger.error(f"Value Error attempting to append message to chat. {e}")
-            pass # TODO: Figure out what to do here. 
+            self.logger.error(f"Value Error attempting to append message to chat. {e}")# TODO: Figure out what to do here. 
+            self.clear_session(tool_session_id)
+
+            return {
+                'content': "Exception occured tool call failed. ",
+                'tool_calls': 0,
+                'tools_executed': 0,
+                'session_id': tool_session_id,
+                'usage': "N/A"
+            }   
+        except Exception as e: 
+            self.logger.error(f"tool_chat.message.extend failed {e}")
+            self.clear_session(tool_session_id)
+
+            return {
+                'content': "Exception occured tool call failed. ",
+                'tool_calls': 0,
+                'tools_executed': 0,
+                'session_id': tool_session_id,
+                'usage': "N/A"
+            }   
         # Run tool loop (existing code)
         tool_calls = []
         final_content = ""
@@ -433,7 +493,7 @@ class xAI_Handler:
             return True
         
         tools_executed_count = sum(1 for tc in tool_calls if is_tool_executed(tc))
-        tool_chat_history = tool_chat.messages
+        tool_chat_history = self._convert_message_container_to_list_of_dict (message_container=tool_chat.messages)
         # Cleanup
         self.clear_session(tool_session_id)
 
@@ -444,17 +504,21 @@ class xAI_Handler:
             'session_id': tool_session_id,
             'usage': usage
         }
-        
     
-    def _integrate_tool_result(self, tool_messages: Dict, main_session_id: str) -> Dict:  # GROK: Should the chat function below use this? 
+    def _integrate_tool_result(self, tool_messages: List[Dict[str, str]], main_session_id: str):  # GROK: Should the chat function below use this? 
         """Append tool result to main conversation naturally."""
-        main_chat = self._get_or_create_chat(main_session_id)
+        main_chat = self._get_or_create_chat(main_session_id)[1]
         try:
-            filtered_msgs = [msg for msg in tool_messages if msg.role not in ["user", "system"]]
-            main_chat.messages.extend(filtered_msgs)    
+            for msg in tool_messages: 
+                if msg["role"] == "assistant":
+                    main_chat.append(assistant(msg["content"]))
+                if msg["role"] == "tool_result": 
+                    main_chat.append(tool_result(msg["content"]))
+
         except ValueError as e:
+            self.logger.warning(f"Error integrating tool results with main chat. {e}")
             pass # TODO: Figure out what to do here. 
-        return main_chat.messages
+        #return main_chat.messages
 
     def automate_workflow(self, task: str, workflow_id: str = None, 
                          clean_session: bool = False, **kwargs) -> Dict:
@@ -475,7 +539,7 @@ class xAI_Handler:
     
     def _run_clean_automation(self, task: str, session_id: str, **kwargs) -> Dict:
         """One-shot automation with clean slate."""
-        chat = self._get_or_create_chat(session_id, tool_choice="required")
+        chat = self._get_or_create_chat(session_id, tool_choice="required")[1]
         chat.messages = [
             system("Execute this automation task completely using available tools. Return structured results."),
             user(task)
@@ -495,7 +559,7 @@ class xAI_Handler:
     
     def _run_continuous_workflow(self, task: str, session_id: str, **kwargs) -> Dict:
         """Stateful workflow building on previous results."""
-        chat = self._get_or_create_chat(session_id, tool_choice="auto")
+        chat = self._get_or_create_chat(session_id, tool_choice="auto")[1]
         
         # Append to existing workflow
         try: 
@@ -540,13 +604,25 @@ class xAI_Handler:
         """
         Grok suggests exposing parallel_function_calling as kwarg to chat.create() - this needs more investigation. 
         """
-        main_chat = self._get_or_create_chat(session_id)
+        temp = self._get_or_create_chat(session_id) # TODO: Return session_id as well as chat, session_id is None during the whole interaction here. 
+        session_id = temp[0]
+        main_chat = temp[1]
         if self._detect_tool_need(message) and handle_tools:
             # REFACTOR to _execute_tool_task. 
             context = self._get_chat_history(session_id)
             tool_result = self._execute_tool_task(message=message, context_messages=context) # If this fails remove context. 
-            main_chat.messages = self._integrate_tool_result(tool_result["content"], session_id)
-            final_content = main_chat.messages[-1].content if main_chat.messages else "" # Get last message
+
+            self._integrate_tool_result(tool_result["content"], session_id) 
+            last_message = main_chat.messages.pop() if main_chat.messages else None
+            final_content = last_message.content.pop().text if last_message else "" # Get last message
+            usage = tool_result["usage"]
+            tool_calls = tool_result.get("tool_calls")
+            workflow_context={
+                'session_id': session_id,
+                'tools_available': self.check_tools(), 
+                'tool_calls': tool_calls  
+            }
+            
         else:
             # Simple chat without tools
             try: 
@@ -554,6 +630,12 @@ class xAI_Handler:
                 response = main_chat.sample(**kwargs)
             except grpc.RpcError as e: # TODO: Add instructions for each code. 
                 self.logger.error(f"API error in chat {e.code().name} - {e.details()}")
+                return {
+                    'content': "An error occured during API call",
+                    'tool_calls': 0,
+                    'session_id': session_id,
+                    'usage': "none"
+                }
                 return False
             except Exception as e: # TODO: Correct this to proper error checking for sample. 
                 if "429" in str(e): # Rate limit
@@ -568,6 +650,12 @@ class xAI_Handler:
                     pass # TODO: Figure out what to do here. 
             final_content = response.content
             usage = getattr(response, 'usage', {})
+            workflow_context={
+                'session_id': session_id,
+                'tools_available': self.check_tools(), 
+                'tool_calls': 0  
+            }
+            tool_calls = 0
         
         # Sync state
         # self._sync_chat(session_id) - commented out for debugging purposes. 
@@ -578,23 +666,19 @@ class xAI_Handler:
             {"role": "assistant", "content": final_content}
         ])
 
-        self.memory.log_usage(
+        """ self.memory.log_usage(
             method='chat',
             prompt=message,
             response=final_content,
-            usage=tool_result["usage"] if tool_result else usage,
-            workflow_context={
-                'session_id': session_id,
-                'tools_available': self.check_tools(), 
-                'tool_calls': tool_result.get("tool_calls", 0)
-            }
-        )
+            usage=usage,
+            workflow_context=workflow_context
+        ) """
         
         return {
             'content': final_content,
-            'tool_calls': tool_result.get("tool_calls", 0),
+            'tool_calls': tool_calls,
             'session_id': session_id,
-            'usage': tool_result.get("usage") if tool_result else usage
+            'usage': usage
         }
     
     async def achat(self, message: str, session_id: str = "default", **kwargs) -> str:
