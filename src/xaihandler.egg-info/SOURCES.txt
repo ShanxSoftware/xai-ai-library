@@ -1,0 +1,16 @@
+LICENSE
+README.md
+pyproject.toml
+src/xaihandler/__init__.py
+src/xaihandler/handler.py
+src/xaihandler/handlerconfig.py
+src/xaihandler/memory.py
+src/xaihandler/personality.py
+src/xaihandler.egg-info/PKG-INFO
+src/xaihandler.egg-info/SOURCES.txt
+src/xaihandler.egg-info/dependency_links.txt
+src/xaihandler.egg-info/requires.txt
+src/xaihandler.egg-info/top_level.txt
+tests/test_handler.py
+tests/test_memory.py
+tests/test_personality.py
