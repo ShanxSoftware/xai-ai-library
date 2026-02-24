@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 src/xaihandler/__init__.py
 src/xaihandler/handler.py
+src/xaihandler/handler_old.py
 src/xaihandler/handlerconfig.py
 src/xaihandler/memory.py
 src/xaihandler/personality.py
