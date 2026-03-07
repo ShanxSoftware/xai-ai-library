@@ -2,10 +2,12 @@ LICENSE
 README.md
 pyproject.toml
 src/xaihandler/__init__.py
+src/xaihandler/definitions.py
 src/xaihandler/handler.py
 src/xaihandler/handler_old.py
 src/xaihandler/handlerconfig.py
 src/xaihandler/memory.py
+src/xaihandler/memorystore.py
 src/xaihandler/personality.py
 src/xaihandler.egg-info/PKG-INFO
 src/xaihandler.egg-info/SOURCES.txt
