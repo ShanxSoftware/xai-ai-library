@@ -14,7 +14,7 @@ from xai_sdk.chat import (
     tool_result
 )
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 
 from .personality import AgentPersonality
 from .personality import Archetype
@@ -68,7 +68,7 @@ class xAI_Handler:
         with self._lock:
             self.personality = personality
 
-    def add_tool(self, name: str, description: str, parameters: BaseModel, func: callable):
+    def add_tool(self, name: str, description: str, parameters: BaseModel, func: Callable):
         """
         Add a new tool to the registry
 
@@ -94,7 +94,7 @@ class xAI_Handler:
             name="store_global_context",
             description="Store or update persistent information useful across all conversations (location, preferences, facts, dimensions, etc.)",
             parameters=UpsertContext,
-            func=lambda key, value, tags: self.memory.upsert_global(key, value, tags)
+            func=lambda key, value, tags=None: self.memory.upsert_global(key, value, tags)
         )
 
         self.add_tool(

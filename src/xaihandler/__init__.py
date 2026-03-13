@@ -9,4 +9,4 @@ from .definitions import DailySoftBudgetExceeded
 from .definitions import AutonomousOutput
 from .definitions import JobCard
 from .definitions import BatchStatus
-__version__ = "0.1.4" 
+__version__ = "0.1.5" 

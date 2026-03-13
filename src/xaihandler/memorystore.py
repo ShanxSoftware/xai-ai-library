@@ -40,8 +40,10 @@ class MemoryStore:
                 CREATE TABLE IF NOT EXISTS global_context (
                     key TEXT PRIMARY KEY, 
                     value TEXT, 
-                    tags TEXT, 
-                    updated_at TEXT);  -- tags = JSON array
+                    tags TEXT, -- tags = JSON array
+                    updated_at TEXT);  
+                CREATE INDEX IF NOT EXISTS idx_global_value ON global_context(value);
+                CREATE INDEX IF NOT EXISTS idx_global_tags ON global_context(tags);
                 CREATE TABLE IF NOT EXISTS usage_summary (
                     summary_date TEXT PRIMARY KEY,          -- 'YYYY-MM-DD'
                     total_tokens INTEGER DEFAULT 0,
@@ -107,7 +109,8 @@ class MemoryStore:
     
     def today_usage(self) -> int:
         """Used for daily soft cap — still needed separately."""
-        today_start = datetime.date.today().isoformat() + "T00:00:00"
+        
+        today_start = datetime.now().date().isoformat() + "T00:00:00"
         with sqlite3.connect(self.db_path) as conn:
             total = conn.execute(
                 """
@@ -195,7 +198,7 @@ class MemoryStore:
                  total_tokens,))
 
     def get_context(self, session_id: str, max_tokens: int = 120000) -> List[Dict[str, str]]:
-        """Returns ordered messages + any matching global context (simple keyword match for now)."""
+        """Returns ordered messages for a session"""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT 50",
@@ -279,6 +282,22 @@ class MemoryStore:
             ).fetchall()
         return [{"key": k, "value": v, "tags": json.loads(t)} for k, v, t in rows]
     
+    def retrieve_global_value(self, key) -> str: 
+        """
+        Retrieves the value associated with a key
+
+        Args: 
+            key: str value for a key in global_context table
+        """
+        with sqlite3.connect(self.db_path) as conn: 
+            row = conn.execute("""
+                SELECT value
+                FROM global_context
+                WHERE key = ?
+                """, (key,)
+            ).fetchone()
+            return row[0] or ""
+
     def list_global_keys(self) -> List[str]:
         """
         List the entire global_context table. 
